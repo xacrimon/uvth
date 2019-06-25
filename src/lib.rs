@@ -5,7 +5,17 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 
-type Task = Box<dyn FnOnce() + Send>;
+trait Job: Send {
+    fn run(self: Box<Self>);
+}
+
+impl<F: FnOnce() + Send> Job for F {
+    fn run(self: Box<Self>) {
+        (*self)();
+    }
+}
+
+type Task = Box<dyn Job>;
 
 enum Message {
     Task(Task),
@@ -71,7 +81,7 @@ impl Worker {
         debug!("Worker thread started.");
         while let Some(message) = self.queue.remove() {
             match message {
-                Message::Task(task) => task(),
+                Message::Task(task) => task.run(),
                 Message::Exit => break,
             }
         }
@@ -134,7 +144,7 @@ impl ThreadPool {
     /// Wait for all workers to exit.
     pub fn join(&self) {
         for _ in 0..self.worker_count {
-            self.notify_exit.recv().unwrap();
+            let _ = self.notify_exit.recv();
         }
     }
 }

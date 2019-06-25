@@ -1,3 +1,6 @@
 /target
 **/*.rs.bk
 Cargo.lock
+uvth-bench/target
+uvth-bench/**/*.rs.bk
+uvth-bench/Cargo.lock
