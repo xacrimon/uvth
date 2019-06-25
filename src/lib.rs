@@ -118,6 +118,7 @@ impl ThreadPool {
     }
 
     /// Execute a task on the pool.
+    #[inline]
     pub fn execute<F: 'static + FnOnce() + Send>(&self, f: F) {
         let task = Box::new(f);
         self.queue.insert(Message::Task(task));
