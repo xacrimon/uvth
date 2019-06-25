@@ -264,10 +264,11 @@ impl ThreadPool {
         for _ in 0..worker_count {
             self.queue.insert(Message::Exit);
         }
+        self.join();
     }
 
     /// Wait for all workers to exit.
-    pub fn join(&self) {
+    fn join(&self) {
         let worker_count = self.worker_count.load(Ordering::SeqCst);
         for _ in 0..worker_count {
             let _ = self.notify_exit.recv();
