@@ -1,6 +1,6 @@
 //! uvth is a library that provides a efficient threadpool as an alternative to the threadpool crate.
 //!
-//! uvth is more efficient and has less overhead. Benchmarks can be found in the README.
+//! uvth is more efficient and has less overhead than the threadpool crate. Benchmarks can be found in the README.
 
 #[macro_use]
 extern crate log;
