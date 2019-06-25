@@ -3,6 +3,9 @@ name = "uvth"
 version = "0.1.0"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
+license = "MIT"
+description = "Compact and efficient threadpool implementation as an alternative to the threadpool crate."
+repository = "https://gitlab.nebulanet.cc/xacrimon/uvth"
 
 [dependencies]
 crossbeam-channel = "0.3.8"
