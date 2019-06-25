@@ -1,9 +1,14 @@
+//! uvth is a library that provides a efficient threadpool as an alternative to the threadpool crate.
+//!
+//! uvth is more efficient and has less overhead. Benchmarks can be found in the README.
+
 #[macro_use]
 extern crate log;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
+use std::sync::atomic::{Ordering, AtomicUsize};
 
 trait Job: Send {
     fn run(self: Box<Self>);
@@ -100,12 +105,15 @@ impl Drop for Worker {
     }
 }
 
-/// A threadpool. Not much to say here. I will assume you know what a threadpool is.
+/// A somewhat basic but efficient implementation of a threadpool. A threadpool is a classic primitive for parallel computation.
+/// It manages a set of worker threads that you can spawn tasks on. The pool manages scheduling of those tasks so you don't have to
+/// think about it.
 #[derive(Clone)]
 pub struct ThreadPool {
-    worker_count: usize,
+    worker_count: Arc<AtomicUsize>,
     queue: MessageQueue,
     notify_exit: Arc<Receiver<()>>,
+    notify_exit_tx: Arc<Sender<()>>,
 }
 
 impl ThreadPool {
@@ -121,9 +129,10 @@ impl ThreadPool {
         }
 
         Self {
-            worker_count,
+            worker_count: Arc::new(AtomicUsize::new(worker_count)),
             queue,
             notify_exit: notify_exit_rx,
+            notify_exit_tx,
         }
     }
 
@@ -134,16 +143,27 @@ impl ThreadPool {
         self.queue.insert(Message::Task(task));
     }
 
+    /// Alter the amount of worker threads in the pool.
+    pub fn set_num_threads(&self, worker_count: usize) {
+        self.worker_count.store(worker_count, Ordering::SeqCst);
+        self.terminate();
+        for _ in 0..worker_count {
+            Worker::start(&self.queue, &self.notify_exit_tx);
+        }
+    }
+
     /// Terminate all threads in the pool.
     pub fn terminate(&self) {
-        for _ in 0..self.worker_count {
+        let worker_count = self.worker_count.load(Ordering::SeqCst);
+        for _ in 0..worker_count {
             self.queue.insert(Message::Exit);
         }
     }
 
     /// Wait for all workers to exit.
     pub fn join(&self) {
-        for _ in 0..self.worker_count {
+        let worker_count = self.worker_count.load(Ordering::SeqCst);
+        for _ in 0..worker_count {
             let _ = self.notify_exit.recv();
         }
     }
