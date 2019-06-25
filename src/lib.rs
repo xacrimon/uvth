@@ -6,9 +6,9 @@
 extern crate log;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::sync::atomic::{Ordering, AtomicUsize};
 
 trait Job: Send {
     fn run(self: Box<Self>);
@@ -66,27 +66,56 @@ struct Worker {
     queue: MessageQueue,
     notify_exit: Arc<Sender<()>>,
     normal_exit: bool,
+    stats: Arc<Stats>,
+    name: Option<String>,
+    stack_size: Option<usize>,
 }
 
 impl Worker {
-    fn start(queue: &MessageQueue, notify_exit: &Arc<Sender<()>>) {
+    fn start(
+        queue: &MessageQueue,
+        notify_exit: &Arc<Sender<()>>,
+        stats: &Arc<Stats>,
+        name: Option<String>,
+        stack_size: Option<usize>,
+    ) {
         let queue = queue.clone();
         let notify_exit = notify_exit.clone();
+        let stats = stats.clone();
         let mut worker = Worker {
             queue,
             notify_exit,
             normal_exit: false,
+            stats,
+            name,
+            stack_size,
         };
-        thread::spawn(move || {
-            worker.do_work();
-        });
+
+        let mut builder = thread::Builder::new();
+        if let Some(name) = worker.name.as_ref() {
+            builder = builder.name(name.to_string());
+        }
+        if let Some(stack_size) = stack_size {
+            builder = builder.stack_size(stack_size);
+        }
+        builder
+            .spawn(move || {
+                worker.do_work();
+            })
+            .expect("failed to spawn thread");
     }
 
     fn do_work(&mut self) {
         debug!("Worker thread started.");
         while let Some(message) = self.queue.remove() {
             match message {
-                Message::Task(task) => task.run(),
+                Message::Task(task) => {
+                    self.stats.queued_jobs.fetch_sub(1, Ordering::Relaxed);
+                    self.stats.active_jobs.fetch_add(1, Ordering::Relaxed);
+                    task.run();
+                    self.stats.active_jobs.fetch_sub(1, Ordering::Relaxed);
+                    self.stats.completed_jobs.fetch_add(1, Ordering::Relaxed);
+                }
                 Message::Exit => break,
             }
         }
@@ -100,8 +129,71 @@ impl Drop for Worker {
     fn drop(&mut self) {
         if !self.normal_exit {
             warn!("Panic in threadpool. Restarting worker.");
-            Worker::start(&self.queue, &self.notify_exit);
+            Worker::start(
+                &self.queue,
+                &self.notify_exit,
+                &self.stats,
+                self.name.clone(),
+                self.stack_size,
+            );
         }
+    }
+}
+
+struct Stats {
+    queued_jobs: AtomicUsize,
+    active_jobs: AtomicUsize,
+    completed_jobs: AtomicUsize,
+}
+
+impl Stats {
+    fn new() -> Self {
+        Self {
+            queued_jobs: AtomicUsize::new(0),
+            active_jobs: AtomicUsize::new(0),
+            completed_jobs: AtomicUsize::new(0),
+        }
+    }
+}
+
+/// A factory for configuring and creating a ThreadPool.
+pub struct ThreadPoolBuilder {
+    num_threads: usize,
+    name: Option<String>,
+    stack_size: Option<usize>,
+}
+
+impl ThreadPoolBuilder {
+    /// Create a new factory with default options. Default values are found in the docs for each respective method.
+    pub fn new() -> Self {
+        Self {
+            num_threads: num_cpus::get(),
+            name: None,
+            stack_size: None,
+        }
+    }
+
+    /// Set the amount of threads. If you do not manually set this it will have one thread per logical processor.
+    pub fn num_threads(mut self, num_threads: usize) -> Self {
+        self.num_threads = num_threads;
+        self
+    }
+
+    /// Set the name of the threads. Not setting this will cause the threads to go unnamed.
+    pub fn name(mut self, name: String) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    /// Set the stack size of the threads. Not setting this will result in platform specific behaviour.
+    pub fn stack_size(mut self, stack_size: usize) -> Self {
+        self.stack_size = Some(stack_size);
+        self
+    }
+
+    /// Assemble the threadpool.
+    pub fn build(self) -> ThreadPool {
+        ThreadPool::create_new(self.num_threads, self.name, self.stack_size)
     }
 }
 
@@ -114,18 +206,22 @@ pub struct ThreadPool {
     queue: MessageQueue,
     notify_exit: Arc<Receiver<()>>,
     notify_exit_tx: Arc<Sender<()>>,
+    stats: Arc<Stats>,
+    name: Option<String>,
+    stack_size: Option<usize>,
 }
 
 impl ThreadPool {
     /// Create a new threadpool with a set number of threads.
-    pub fn new(worker_count: usize) -> Self {
+    fn create_new(worker_count: usize, name: Option<String>, stack_size: Option<usize>) -> Self {
         debug!("Creating threadpool");
         let queue = MessageQueue::new();
         let (notify_exit_tx, notify_exit_rx) = unbounded();
         let (notify_exit_tx, notify_exit_rx) = (Arc::new(notify_exit_tx), Arc::new(notify_exit_rx));
+        let stats = Arc::new(Stats::new());
 
         for _ in 0..worker_count {
-            Worker::start(&queue, &notify_exit_tx);
+            Worker::start(&queue, &notify_exit_tx, &stats, name.clone(), stack_size);
         }
 
         Self {
@@ -133,6 +229,9 @@ impl ThreadPool {
             queue,
             notify_exit: notify_exit_rx,
             notify_exit_tx,
+            stats,
+            name,
+            stack_size,
         }
     }
 
@@ -141,14 +240,21 @@ impl ThreadPool {
     pub fn execute<F: 'static + FnOnce() + Send>(&self, f: F) {
         let task = Box::new(f);
         self.queue.insert(Message::Task(task));
+        self.stats.queued_jobs.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Alter the amount of worker threads in the pool.
-    pub fn set_num_threads(&self, worker_count: usize) {
-        self.worker_count.store(worker_count, Ordering::SeqCst);
+    pub fn set_num_threads(&mut self, worker_count: usize) {
         self.terminate();
+        self.worker_count.store(worker_count, Ordering::SeqCst);
         for _ in 0..worker_count {
-            Worker::start(&self.queue, &self.notify_exit_tx);
+            Worker::start(
+                &self.queue,
+                &self.notify_exit_tx,
+                &self.stats,
+                self.name.clone(),
+                self.stack_size,
+            );
         }
     }
 
