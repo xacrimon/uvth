@@ -91,10 +91,11 @@ impl Drop for Worker {
 }
 
 /// A threadpool. Not much to say here. I will assume you know what a threadpool is.
+#[derive(Clone)]
 pub struct ThreadPool {
     worker_count: usize,
     queue: MessageQueue,
-    notify_exit: Receiver<()>,
+    notify_exit: Arc<Receiver<()>>,
 }
 
 impl ThreadPool {
@@ -103,7 +104,7 @@ impl ThreadPool {
         debug!("Creating threadpool");
         let queue = MessageQueue::new();
         let (notify_exit_tx, notify_exit_rx) = unbounded();
-        let notify_exit_tx = Arc::new(notify_exit_tx);
+        let (notify_exit_tx, notify_exit_rx) = (Arc::new(notify_exit_tx), Arc::new(notify_exit_rx));
 
         for _ in 0..worker_count {
             Worker::start(&queue, &notify_exit_tx);
@@ -134,5 +135,15 @@ impl ThreadPool {
         for _ in 0..self.worker_count {
             self.notify_exit.recv().unwrap();
         }
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        debug!("Dropping threadpool.");
+        debug!("Terminating threads");
+        self.terminate();
+        debug!("Waiting for threads to exit.");
+        self.join();
     }
 }
