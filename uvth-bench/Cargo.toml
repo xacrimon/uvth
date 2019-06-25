@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 uvth = { path = ".." }
-threadpool = "1.7"
-criterion = "0.2"
+threadpool = "1.7.1"
+criterion = "0.2.11"
 
 [[bench]]
 name = "threadpool"

@@ -16,7 +16,7 @@ fn threadpool() {
 }
 
 fn uvth_threadpool() {
-    let pool = uvth::ThreadPool::new(8);
+    let pool = uvth::ThreadPoolBuilder::new().build();
     for _ in 0..JOBC {
         pool.execute(|| {
             let _ = 8 + 9;
