@@ -1,0 +1,9 @@
+[package]
+name = "uvth"
+version = "0.1.0"
+authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+crossbeam-channel = "0.3.8"
+log = "0.4.6"
