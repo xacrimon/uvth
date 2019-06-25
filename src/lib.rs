@@ -258,7 +258,7 @@ impl ThreadPool {
         }
     }
 
-    /// Terminate all threads in the pool.
+    /// Terminate all threads in the pool. Calling execute after this will result in silently ignoring jobs.
     pub fn terminate(&self) {
         let worker_count = self.worker_count.load(Ordering::SeqCst);
         for _ in 0..worker_count {
@@ -281,7 +281,5 @@ impl Drop for ThreadPool {
         debug!("Dropping threadpool.");
         debug!("Terminating threads");
         self.terminate();
-        debug!("Waiting for threads to exit.");
-        self.join();
     }
 }
