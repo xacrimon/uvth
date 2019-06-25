@@ -245,6 +245,8 @@ impl ThreadPool {
 
     /// Alter the amount of worker threads in the pool.
     pub fn set_num_threads(&mut self, worker_count: usize) {
+        assert_ne!(worker_count, 0);
+
         self.terminate();
         self.worker_count.store(worker_count, Ordering::SeqCst);
         for _ in 0..worker_count {
