@@ -90,6 +90,7 @@ impl Drop for Worker {
     }
 }
 
+/// A threadpool. Not much to say here. I will assume you know what a threadpool is.
 pub struct ThreadPool {
     worker_count: usize,
     queue: MessageQueue,
@@ -97,6 +98,7 @@ pub struct ThreadPool {
 }
 
 impl ThreadPool {
+    /// Create a new threadpool with a set number of threads.
     pub fn new(worker_count: usize) -> Self {
         debug!("Creating threadpool");
         let queue = MessageQueue::new();
@@ -114,17 +116,20 @@ impl ThreadPool {
         }
     }
 
+    /// Execute a task on the pool.
     pub fn execute<F: 'static + FnOnce() + Send>(&self, f: F) {
         let task = Box::new(f);
         self.queue.insert(Message::Task(task));
     }
 
+    /// Terminate all threads in the pool.
     pub fn terminate(&self) {
         for _ in 0..self.worker_count {
             self.queue.insert(Message::Exit);
         }
     }
 
+    /// Wait for all workers to exit.
     pub fn join(&self) {
         for _ in 0..self.worker_count {
             self.notify_exit.recv().unwrap();
