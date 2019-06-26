@@ -10,9 +10,9 @@ variables:
 test:
   stage: test
   script:
-    - rustc --version
-    - cargo --version
-    - cargo test --verbose
+    - rustc +stable --version
+    - cargo +stable --version
+    - cargo +stable test --verbose
 
 cache:
   paths:
