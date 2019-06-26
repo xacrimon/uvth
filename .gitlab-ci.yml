@@ -1,10 +1,11 @@
-image: 'rust:latest'
+image: 'rust:slim'
 
 stages:
   - test
 
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/cargo
+  RUSTUP_HOME: $CI_PROJECT/rustup
 
 test:
   stage: test
@@ -17,3 +18,4 @@ cache:
   paths:
     - cargo/
     - target/
+    - rustup/
