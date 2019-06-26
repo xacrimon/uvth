@@ -1,19 +1,22 @@
-image: 'rust:slim'
+image: 'rust:latest'
 
 stages:
   - test
 
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/cargo
+  RUSTUP_HOME: $CI_PROJECT/cargo
 
 test:
   stage: test
   script:
-    - rustc --version
-    - cargo --version
-    - cargo test --verbose
+    - rustup install stable
+    - rustc +stable --version
+    - cargo +stable --version
+    - cargo +stable test --verbose
 
 cache:
   paths:
     - cargo/
     - target/
+    - rustup/
