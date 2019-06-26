@@ -23,7 +23,6 @@ fn uvth_threadpool() {
         });
     }
     pool.terminate();
-    pool.join();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
