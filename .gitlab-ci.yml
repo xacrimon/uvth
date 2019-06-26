@@ -5,7 +5,7 @@ stages:
 
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/cargo
-  RUSTUP_HOME: $CI_PROJECT/rustup
+  RUSTUP_HOME: $CI_PROJECT/cargo
 
 test:
   stage: test
