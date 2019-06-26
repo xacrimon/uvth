@@ -10,6 +10,7 @@ variables:
 test:
   stage: test
   script:
+    - rustup install stable
     - rustc +stable --version
     - cargo +stable --version
     - cargo +stable test --verbose
