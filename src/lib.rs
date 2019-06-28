@@ -116,11 +116,13 @@ impl Worker {
                     self.stats.active_jobs.fetch_sub(1, Ordering::Relaxed);
                     self.stats.completed_jobs.fetch_add(1, Ordering::Relaxed);
                 }
-                Message::Exit => break,
+                Message::Exit => {
+                    self.normal_exit = true;
+                    break;
+                },
             }
         }
         let _ = self.notify_exit.send(());
-        self.normal_exit = true;
         debug!("Worker thread exited.");
     }
 }
@@ -263,6 +265,7 @@ impl ThreadPool {
     /// Terminate all threads in the pool. Calling execute after this will result in silently ignoring jobs.
     pub fn terminate(&self) {
         let worker_count = self.worker_count.load(Ordering::SeqCst);
+        self.worker_count.store(0, Ordering::SeqCst);
         for _ in 0..worker_count {
             self.queue.insert(Message::Exit);
         }
