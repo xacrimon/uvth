@@ -101,6 +101,7 @@ impl Worker {
         builder
             .spawn(move || {
                 worker.do_work();
+                drop(worker);
             })
             .expect("failed to spawn thread");
     }
