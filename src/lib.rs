@@ -143,10 +143,10 @@ impl Drop for Worker {
     }
 }
 
-struct Stats {
-    queued_jobs: AtomicUsize,
-    active_jobs: AtomicUsize,
-    completed_jobs: AtomicUsize,
+pub struct Stats {
+    pub queued_jobs: AtomicUsize,
+    pub active_jobs: AtomicUsize,
+    pub completed_jobs: AtomicUsize,
 }
 
 impl Stats {
@@ -209,7 +209,7 @@ pub struct ThreadPool {
     queue: MessageQueue,
     notify_exit: Arc<Receiver<()>>,
     notify_exit_tx: Arc<Sender<()>>,
-    stats: Arc<Stats>,
+    pub stats: Arc<Stats>,
     name: Option<String>,
     stack_size: Option<usize>,
 }
@@ -244,6 +244,12 @@ impl ThreadPool {
         let task = Box::new(f);
         self.queue.insert(Message::Task(task));
         self.stats.queued_jobs.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Fetches the amount of queued jobs.
+    #[inline]
+    pub fn queued_jobs(&self) -> usize {
+        self.stats.queued_jobs.load(Ordering::SeqCst)
     }
 
     /// Alter the amount of worker threads in the pool.
