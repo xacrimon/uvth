@@ -120,7 +120,7 @@ impl Worker {
                 Message::Exit => {
                     self.normal_exit = true;
                     break;
-                },
+                }
             }
         }
         let _ = self.notify_exit.send(());
