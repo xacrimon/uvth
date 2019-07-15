@@ -44,19 +44,16 @@ impl MessageQueue {
     }
 
     fn insert(&self, message: Message) {
-        if self.sender.send(message).is_ok() {
-            debug!("Successfully inserted message into queue.");
-        } else {
-            warn!("Failed to insert message into queue.");
+        if self.sender.send(message).is_err() {
+            error!("Failed to insert message into queue.");
         }
     }
 
     fn remove(&self) -> Option<Message> {
         if let Ok(message) = self.receiver.recv() {
-            debug!("Successfully removed message from queue.");
             Some(message)
         } else {
-            warn!("Failed to remove message from queue.");
+            error!("Failed to remove message from queue.");
             None
         }
     }
