@@ -29,14 +29,13 @@ enum Message {
 
 #[derive(Clone)]
 struct MessageQueue {
-    sender: Arc<Sender<Message>>,
-    receiver: Arc<Receiver<Message>>,
+    sender: Sender<Message>,
+    receiver: Receiver<Message>,
 }
 
 impl MessageQueue {
     fn new() -> Self {
         let (tx, rx) = unbounded();
-        let (tx, rx) = (Arc::new(tx), Arc::new(rx));
         Self {
             sender: tx,
             receiver: rx,
@@ -61,7 +60,7 @@ impl MessageQueue {
 
 struct Worker {
     queue: MessageQueue,
-    notify_exit: Arc<Sender<()>>,
+    notify_exit: Sender<()>,
     normal_exit: bool,
     stats: Arc<Stats>,
     name: Option<String>,
@@ -71,7 +70,7 @@ struct Worker {
 impl Worker {
     fn start(
         queue: &MessageQueue,
-        notify_exit: &Arc<Sender<()>>,
+        notify_exit: &Sender<()>,
         stats: &Arc<Stats>,
         name: Option<String>,
         stack_size: Option<usize>,
@@ -204,8 +203,8 @@ impl ThreadPoolBuilder {
 pub struct ThreadPool {
     worker_count: Arc<AtomicUsize>,
     queue: MessageQueue,
-    notify_exit: Arc<Receiver<()>>,
-    notify_exit_tx: Arc<Sender<()>>,
+    notify_exit: Receiver<()>,
+    notify_exit_tx: Sender<()>,
     pub stats: Arc<Stats>,
     name: Option<String>,
     stack_size: Option<usize>,
@@ -217,7 +216,6 @@ impl ThreadPool {
         debug!("Creating threadpool");
         let queue = MessageQueue::new();
         let (notify_exit_tx, notify_exit_rx) = unbounded();
-        let (notify_exit_tx, notify_exit_rx) = (Arc::new(notify_exit_tx), Arc::new(notify_exit_rx));
         let stats = Arc::new(Stats::new());
 
         for _ in 0..worker_count {
