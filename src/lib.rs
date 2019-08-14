@@ -62,7 +62,6 @@ struct Worker {
     queue: MessageQueue,
     notify_exit: Sender<()>,
     normal_exit: bool,
-    stats: Arc<Stats>,
     name: Option<String>,
     stack_size: Option<usize>,
 }
@@ -71,18 +70,15 @@ impl Worker {
     fn start(
         queue: &MessageQueue,
         notify_exit: &Sender<()>,
-        stats: &Arc<Stats>,
         name: Option<String>,
         stack_size: Option<usize>,
     ) {
         let queue = queue.clone();
         let notify_exit = notify_exit.clone();
-        let stats = stats.clone();
         let mut worker = Worker {
             queue,
             notify_exit,
             normal_exit: false,
-            stats,
             name,
             stack_size,
         };
@@ -107,11 +103,7 @@ impl Worker {
         while let Some(message) = self.queue.remove() {
             match message {
                 Message::Task(task) => {
-                    self.stats.queued_jobs.fetch_sub(1, Ordering::Relaxed);
-                    self.stats.active_jobs.fetch_add(1, Ordering::Relaxed);
                     task.run();
-                    self.stats.active_jobs.fetch_sub(1, Ordering::Relaxed);
-                    self.stats.completed_jobs.fetch_add(1, Ordering::Relaxed);
                 }
                 Message::Exit => {
                     self.normal_exit = true;
@@ -131,26 +123,9 @@ impl Drop for Worker {
             Worker::start(
                 &self.queue,
                 &self.notify_exit,
-                &self.stats,
                 self.name.clone(),
                 self.stack_size,
             );
-        }
-    }
-}
-
-pub struct Stats {
-    pub queued_jobs: AtomicUsize,
-    pub active_jobs: AtomicUsize,
-    pub completed_jobs: AtomicUsize,
-}
-
-impl Stats {
-    fn new() -> Self {
-        Self {
-            queued_jobs: AtomicUsize::new(0),
-            active_jobs: AtomicUsize::new(0),
-            completed_jobs: AtomicUsize::new(0),
         }
     }
 }
@@ -205,7 +180,6 @@ pub struct ThreadPool {
     queue: MessageQueue,
     notify_exit: Receiver<()>,
     notify_exit_tx: Sender<()>,
-    pub stats: Arc<Stats>,
     name: Option<String>,
     stack_size: Option<usize>,
 }
@@ -216,10 +190,9 @@ impl ThreadPool {
         debug!("Creating threadpool");
         let queue = MessageQueue::new();
         let (notify_exit_tx, notify_exit_rx) = unbounded();
-        let stats = Arc::new(Stats::new());
 
         for _ in 0..worker_count {
-            Worker::start(&queue, &notify_exit_tx, &stats, name.clone(), stack_size);
+            Worker::start(&queue, &notify_exit_tx, name.clone(), stack_size);
         }
 
         Self {
@@ -227,7 +200,6 @@ impl ThreadPool {
             queue,
             notify_exit: notify_exit_rx,
             notify_exit_tx,
-            stats,
             name,
             stack_size,
         }
@@ -238,13 +210,6 @@ impl ThreadPool {
     pub fn execute<F: 'static + FnOnce() + Send>(&self, f: F) {
         let task = Box::new(f);
         self.queue.insert(Message::Task(task));
-        self.stats.queued_jobs.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// Fetches the amount of queued jobs.
-    #[inline]
-    pub fn queued_jobs(&self) -> usize {
-        self.stats.queued_jobs.load(Ordering::SeqCst)
     }
 
     /// Alter the amount of worker threads in the pool.
@@ -257,7 +222,6 @@ impl ThreadPool {
             Worker::start(
                 &self.queue,
                 &self.notify_exit_tx,
-                &self.stats,
                 self.name.clone(),
                 self.stack_size,
             );

@@ -1,6 +1,6 @@
 [package]
 name = "uvth"
-version = "3.1.1"
+version = "4.0.0"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -8,6 +8,6 @@ description = "Compact and efficient threadpool implementation as an alternative
 repository = "https://gitlab.nebulanet.cc/xacrimon/uvth"
 
 [dependencies]
-crossbeam-channel = "0.3.8"
-log = "0.4.6"
+crossbeam-channel = "0.3.9"
+log = "0.4.8"
 num_cpus = "1.10.1"
