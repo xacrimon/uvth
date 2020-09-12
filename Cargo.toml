@@ -9,6 +9,6 @@ repository = "https://github.com/xacrimon/uvth"
 documentation = "https://docs.rs/uvth"
 
 [dependencies]
-crossbeam-channel = "0.3.9"
+crossbeam-channel = "0.4"
 log = "0.4.8"
 num_cpus = "1.10.1"
